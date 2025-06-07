@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deep Research UI</title>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#f7f7f8;color:#333;display:flex;min-height:100vh;}
+.sidebar{width:260px;background:#fff;border-right:1px solid #e5e5e5;padding:20px;position:fixed;top:0;bottom:0;overflow-y:auto;}
+.logo{display:flex;align-items:center;margin-bottom:20px;font-size:18px;font-weight:700;}
+.logo span.icon{display:inline-block;width:24px;height:24px;background:#10a37f;border-radius:6px;margin-right:8px;}
+.history-item{padding:8px;border-radius:6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.history-item:hover{background:#f0f0f0;}
+.main{flex:1;margin-left:260px;display:flex;flex-direction:column;}
+.chat{flex:1;max-width:800px;margin:0 auto;padding:20px 20px 120px;}
+.message{display:flex;gap:12px;padding:20px;border-radius:8px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.05);margin-bottom:12px;line-height:1.6;}
+.user .avatar{background:#5436DA;}
+.assistant .avatar{background:#10a37f;}
+.avatar{width:32px;height:32px;border-radius:6px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;flex-shrink:0;}
+.input-area{position:fixed;bottom:0;left:260px;right:0;background:#f7f7f8;border-top:1px solid #e5e5e5;padding:10px 20px;display:flex;gap:10px;}
+#input{flex:1;border:1px solid #ccc;border-radius:8px;padding:10px;resize:none;min-height:40px;max-height:160px;}
+#send{background:#10a37f;border:none;color:#fff;border-radius:8px;padding:0 20px;cursor:pointer;}
+.loading-dots{display:flex;gap:4px;align-items:center;}
+.dot{width:8px;height:8px;background:#8e8ea0;border-radius:50%;animation:dot-pulse 1.5s infinite ease-in-out;}
+.dot:nth-child(2){animation-delay:0.2s;}
+.dot:nth-child(3){animation-delay:0.4s;}
+@keyframes dot-pulse{0%,100%{transform:scale(0.8);opacity:0.5;}50%{transform:scale(1.2);opacity:1;}}
+</style>
+</head>
+<body>
+<aside class="sidebar">
+    <div class="logo"><span class="icon"></span>Deep Research</div>
+    <div id="history"></div>
+</aside>
+<main class="main">
+    <div class="chat" id="chat"></div>
+</main>
+<div class="input-area">
+    <textarea id="input" placeholder="输入研究主题..." rows="1"></textarea>
+    <button id="send">发送</button>
+</div>
+<script>
+let currentId=null,polling=null;
+function addMsg(text,type){
+    const box=document.getElementById('chat');
+    const m=document.createElement('div');
+    m.className='message '+type;
+    const avatar=document.createElement('div');
+    avatar.className='avatar';
+    avatar.textContent=type==='user'?'U':'A';
+    m.appendChild(avatar);
+    const content=document.createElement('div');
+    content.className='content';
+    content.innerHTML=text;
+    m.appendChild(content);
+    box.appendChild(m);
+    window.scrollTo(0,document.body.scrollHeight);
+}
+function send(){
+    const topic=document.getElementById('input').value.trim();
+    if(!topic) return;
+    addMsg(topic,'user');
+    addMsg('<div class="loading-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>','assistant');
+    fetch('/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:topic,model:'gpt-4o'})})
+    .then(r=>r.json()).then(d=>{currentId=d.research_id;startPoll();});
+    document.getElementById('input').value='';
+}
+function startPoll(){stopPoll();poll();polling=setInterval(poll,2000);}
+function stopPoll(){if(polling){clearInterval(polling);polling=null;}}
+function poll(){fetch('/logs').then(r=>r.json()).then(d=>{if(d.logs){document.querySelector('#chat .assistant:last-child .content').innerHTML=d.logs.join('<br>');}if(d.finished){getReport();stopPoll();}});}
+function getReport(){fetch('/report').then(r=>r.text()).then(t=>{const c=document.querySelector('#chat .assistant:last-child .content');c.innerHTML+= '<div style="margin-top:20px;border-top:1px solid #e5e5e5;padding-top:10px;">'+t+'</div>';});}
+document.getElementById('send').onclick=send;
+document.getElementById('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
+</script>
+</body>
+</html>
+
